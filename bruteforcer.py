@@ -116,7 +116,7 @@ def threadsafe(f):
     return g
 
 @threadsafe
-def permutation_generator(perm_opts):
+def get_permutation_generator(perm_opts):
     numeric_representation = []
     character_representation = []
     charset = [];
@@ -186,6 +186,7 @@ def start_brute_force(opts):
     threadID = 1
 
     signal.signal(signal.SIGINT, signal_handler)
+    generator = get_permutation_generator(perm_opts);
 
     # Create new threads
     for i in range(0, int(opts['numThreads'])):
@@ -193,7 +194,7 @@ def start_brute_force(opts):
                 threadID,
                 "thread-%s" % str(i),
                 thread_opts,
-                permutation_generator(perm_opts),
+                generator,
             )
         thread.start()
         threads.append(thread)
