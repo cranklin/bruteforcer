@@ -1,3 +1,5 @@
+Cranky's Bruteforcer
+====================
 Usage: ./bruteforcer.py [OPTION]... [COMMAND]
 Bruteforces the COMMAND (until an exit code of 0 by default).
 
