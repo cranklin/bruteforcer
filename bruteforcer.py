@@ -129,7 +129,13 @@ def permutation_generator(perm_opts):
     if perm_opts['symbols']:
         charset.extend(['~','`','!','@','#','$','%','^','&','*','(',')','-','_','\\','/','\'','"',';',':',',','.','+','=','<','>','?'])
     if perm_opts['dictionaryFile'] is not None:
-        pass
+        with open (perm_opts['dictionaryFile'], "r") as dictFile:
+            data=dictFile.readlines()
+            words = [word.strip() for word in data]
+        for word in words:
+            yield word.lower()
+            yield word.upper()
+            yield word.title()
 
     for char in itertools.product(charset, repeat=int(perm_opts['length'])):
         s = ''.join(char)
