@@ -46,6 +46,9 @@ Mandatory arguments to long options are mandatory for short options too.
                                 (default is 0)
   -l, --length=LEN           attempt passwords up to LEN length
                                 (default is 8)
+  -m, --marker=MARKER        denotes the marker in the COMMAND string which
+                                will be replaced with password permutations
+                                (default is {})
   -a                         attempt lowercase alphabet characters
   -A                         attempt uppercase alphabet characters
   -N                         attempt numeric characters
@@ -145,7 +148,7 @@ def process_attempt(threadName, thread_opts, it):
     global exitFlag
     while not exitFlag:
         data = it.next()
-        password_injected_command = [item.format(data) for item in thread_opts['command']]
+        password_injected_command = [item.replace(thread_opts['marker'], data) for item in thread_opts['command']]
         if thread_opts['verbose']:
             print "%s processing %s" % (threadName, data)
             return_code = subprocess.call(password_injected_command)
@@ -153,13 +156,14 @@ def process_attempt(threadName, thread_opts, it):
             with open(os.devnull, 'w') as devnull:
                 return_code = subprocess.call(password_injected_command, stdout=devnull, stderr=devnull)
         if int(return_code) == int(thread_opts['statusCode']):
-            exitFlag = 1
+            exitFlag = 2
             print "\n\n"
             print "***** PASSWORD FOUND *****"
             print "password: {}".format(data)
             print "***** PASSWORD FOUND *****"
             print "\n\n"
-    print "last password attempted by {} : {}".format(threadName, data)
+    if exitFlag < 2:
+        print "last password attempted by {} : {}".format(threadName, data)
 
 def signal_handler(signal, frame):
     global exitFlag
@@ -177,11 +181,12 @@ def start_brute_force(opts):
     print 'Number of threads: ', opts['numThreads']
     print 'Desired status code: ', opts['statusCode']
     print 'Length: ', opts['length']
+    print 'Marker: ', opts['marker']
     print 'Command to brute force: ', opts['command']
     print '\n\n'
 
     perm_opts = {k: opts[k] for k in ('lowerAlphabet', 'upperAlphabet', 'numbers', 'symbols', 'dictionaryFile', 'length')}
-    thread_opts = {k: opts[k] for k in ('command', 'verbose', 'statusCode')}
+    thread_opts = {k: opts[k] for k in ('command', 'verbose', 'statusCode', 'marker')}
     threads = []
     threadID = 1
 
@@ -214,6 +219,7 @@ def main(argv):
     numThreads = 1
     statusCode = 0
     length = 8
+    marker = "{}"
     lowerAlphabet = False
     upperAlphabet = False
     numbers = False
@@ -222,7 +228,7 @@ def main(argv):
     dictionaryFile = None
 
     try:
-        opts, args = getopt.getopt(argv,"hvaANSVd:n:s:i:l:",["help","version","numthreads=","statuscode=","dict=","length="])
+        opts, args = getopt.getopt(argv,"hvaANSVd:n:s:i:l:m:",["help","version","numthreads=","statuscode=","dict=","length=","marker="])
     except getopt.GetoptError:
         print errorText
         sys.exit(2)
@@ -251,6 +257,8 @@ def main(argv):
             statusCode = arg
         elif opt in ("-l", "--length"):
             length = arg
+        elif opt in ("-m", "--marker"):
+            marker = arg
 
     if len(args) < 1:
         print errorText
@@ -266,6 +274,7 @@ def main(argv):
         "verbose"           : verbose,
         "dictionaryFile"    : dictionaryFile,
         "length"            : length,
+        "marker"            : marker,
         "command"           : args
     })
 
