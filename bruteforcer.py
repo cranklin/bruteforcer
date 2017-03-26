@@ -8,224 +8,214 @@ import getopt
 import itertools
 import subprocess
 
-exitFlag = 0  # 0: running 1: keyboard interrupt 2: password found
-version = "v0.03"
+from threadsafe import Threadsafe, threadsafe
+
+
+version = "v0.04"
 errorText = '%s -h or %s --help for help' % (__file__, __file__)
 versionText = '''
-bruteforcer (cranklin.com) %s
-Copyright (C) 2017 Cranklin.com
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+    bruteforcer (cranklin.com) %s
+    Copyright (C) 2017 Cranklin.com
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
 
-Written by Edward E. Kim (cranklin.com).
-''' % (version)
+    Written by Edward E. Kim (cranklin.com).
+    ''' % (version)
 usageText = '''
-Usage: %s [OPTION]... [COMMAND]
-Bruteforces the COMMAND (until an exit code of 0 by default).
+    Usage: %s [OPTION]... [COMMAND]
+    Bruteforces the COMMAND (until an exit code of 0 by default).
 
-Mandatory arguments to long options are mandatory for short options too.
-  -n, --numthreads=NUM       fires up NUM threads to bruteforce COMMAND
-                                (default is 1)
-  -s, --statuscode=STATUS    continues to run COMMAND on all threads until
-                                an exit code of STATUS has been returned
-                                (default is 0)
-  -l, --length=LEN           attempt passwords up to LEN length
-                                (default is 8)
-  -m, --marker=MARKER        denotes the marker in the COMMAND string which
-                                will be replaced with password permutations
-                                (default is {})
-  -a                         attempt lowercase alphabet characters
-  -A                         attempt uppercase alphabet characters
-  -N                         attempt numeric characters
-  -S                         attempt special characters
-  -d, --dict=DICTFILE        attempt dictionary words supplied in DICTFILE
-                                which should be a newline delimited list of
-                                dictionary words to attempt.  Each word will
-                                be attempted in three ways: lower case, upper
-                                case, upper first
-  -V                         verbose mode.  Displays each response to STDOUT
-  -h, --help                 display this help and exit
-  -v, --version              output version information and exit
-
-
-{} denotes section in the COMMAND string to inject passwords
-
-Examples:
-    %s -a unzip -t -P {} file.zip (attempts all lowercase alphabet
-        passwords up to LEN length)
-    %s -a -N curl -f -u username:{} http://example.com (attempts
-        all alphanumeric passwords up to LEN length)
-
-Exit status:
- 0  if OK,
- 1  if minor problems (e.g., no command given),
- 2  if less minor problems (e.g., incorrect command-line argument usage),
- 3  if serious trouble.
-
-online help: <http://www.cranklin.com>
-Full documentation at: <http://www.cranklin.com>
-''' % (__file__, __file__, __file__)
-
-class BruteForceThread (threading.Thread):
-    def __init__(self, threadID, name, thread_opts, it):
-        threading.Thread.__init__(self)
-        self.threadID = threadID
-        self.name = name
-        self.it = it
-        self.thread_opts = thread_opts
-    def run(self):
-        print "Starting " + self.name
-        process_attempt(self.name, self.thread_opts, self.it)
-        print "Exiting " + self.name
+    Mandatory arguments to long options are mandatory for short options too.
+      -n, --numthreads=NUM       fires up NUM threads to bruteforce COMMAND
+                                    (default is 1)
+      -s, --statuscode=STATUS    continues to run COMMAND on all threads until
+                                    an exit code of STATUS has been returned
+                                    (default is 0)
+      -l, --length=LEN           attempt passwords up to LEN length
+                                    (default is 8)
+      -m, --marker=MARKER        denotes the marker in the COMMAND string which
+                                    will be replaced with password permutations
+                                    (default is {})
+      -a                         attempt lowercase alphabet characters
+      -A                         attempt uppercase alphabet characters
+      -N                         attempt numeric characters
+      -S                         attempt special characters
+      -d, --dict=DICTFILE        attempt dictionary words supplied in DICTFILE
+                                    which should be a newline delimited list of
+                                    dictionary words to attempt.  Each word will
+                                    be attempted in three ways: lower case, upper
+                                    case, upper first
+      -V                         verbose mode.  Displays each response to STDOUT
+      -h, --help                 display this help and exit
+      -v, --version              output version information and exit
 
 
-class Threadsafe:
-    """
-    Takes an iterator/generator and makes it thread-safe by
-    serializing call to the `next` method of given iterator/generator.
-    """
-    def __init__(self, it):
-        self.it = it
-        self.lock = threading.Lock()
-        self.last = ""
+    {} denotes section in the COMMAND string to inject passwords
 
-    def __iter__(self):
-        return self
+    Examples:
+        %s -a unzip -t -P {} file.zip (attempts all lowercase alphabet
+            passwords up to LEN length)
+        %s -a -N curl -f -u username:{} http://example.com (attempts
+            all alphanumeric passwords up to LEN length)
 
-    def next(self):
-        with self.lock:
-            #return self.it.next()
-            self.last = self.it.next()
-            return self.last
+    Exit status:
+     0  if OK,
+     1  if minor problems (e.g., no command given),
+     2  if less minor problems (e.g., incorrect command-line argument usage),
+     3  if serious trouble.
 
-def threadsafe(f):
-    """
-    A decorator that takes a generator function and makes it thread-safe.
-    """
-    def g(*a, **kw):
-        return Threadsafe(f(*a, **kw))
-    return g
+    online help: <http://www.cranklin.com>
+    Full documentation at: <http://www.cranklin.com>
+    ''' % (__file__, __file__, __file__)
 
-@threadsafe
-def permutation_generator(perm_opts):
-    numeric_representation = []
-    character_representation = []
-    charset = [];
-    if perm_opts['lowerAlphabet']:
-        charset.extend(['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z'])
-    if perm_opts['upperAlphabet']:
-        charset.extend(['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'])
-    if perm_opts['numbers']:
-        charset.extend(['0','1','2','3','4','5','6','7','8','9'])
-    if perm_opts['symbols']:
-        charset.extend(['~','`','!','@','#','$','%','^','&','*','(',')','-','_','\\','/','\'','"',';',':',',','.','+','=','<','>','?'])
-    if perm_opts['dictionaryFile'] is not None:
-        with open (perm_opts['dictionaryFile'], "r") as dictFile:
-            data=dictFile.readlines()
-            words = [word.strip() for word in data]
-        for word in words:
-            yield word.lower()
-            yield word.upper()
-            yield word.title()
 
-    for i in range(1, int(perm_opts['length'])+1):
-        for char in itertools.product(charset, repeat=i):
-            s = ''.join(char)
-            yield s
+class BruteForcer:
 
-def process_attempt(threadName, thread_opts, it):
-    global exitFlag
-    while not exitFlag:
-        data = it.next()
-        password_injected_command = [item.replace(thread_opts['marker'], data) for item in thread_opts['command']]
-        if thread_opts['verbose']:
-            print "%s processing %s" % (threadName, data)
-            return_code = subprocess.call(password_injected_command)
-        else:
-            with open(os.devnull, 'w') as devnull:
-                return_code = subprocess.call(password_injected_command, stdout=devnull, stderr=devnull)
-        if int(return_code) == int(thread_opts['statusCode']):
-            exitFlag = 2
-            print "\n\n"
-            print "***** PASSWORD FOUND *****"
-            print "password: {}".format(data)
-            print "***** PASSWORD FOUND *****"
-            print "\n\n"
-    if exitFlag < 2:
-        print "last password attempted by {} : {}".format(threadName, data)
+    lowerAlphabetCharset = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z']
+    upperAlphabetCharset = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
+    numbersCharset = ['0','1','2','3','4','5','6','7','8','9']
+    symbolsCharset = ['~','`','!','@','#','$','%','^','&','*','(',')','-','_','\\','/','\'','"',';',':',',','.','+','=','<','>','?']
 
-def start_brute_force(opts):
-    global exitFlag
-    print 'Lowercase alphabet: ', opts['lowerAlphabet']
-    print 'Uppercase alphabet: ', opts['upperAlphabet']
-    print 'Numbers: ', opts['numbers']
-    print 'Symbols: ', opts['symbols']
-    print 'Dictionary file: ', opts['dictionaryFile']
-    print 'Number of threads: ', opts['numThreads']
-    print 'Desired status code: ', opts['statusCode']
-    print 'Length: ', opts['length']
-    print 'Marker: ', opts['marker']
-    print 'Command to brute force: ', opts['command']
-    print '\n\n'
-    print 'Ctrl-C to quit'
-    print 'Ctrl-\\ to check status'
-    print '\n\n\n\n'
+    def __init__(self, opts):
+        """
+        0: running
+        1: keyboard interrupt
+        2: password found
+        """
+        self.exitFlag = 0
+        self.lowerAlphabet = opts['lowerAlphabet']
+        self.upperAlphabet = opts['upperAlphabet']
+        self.numbers = opts['numbers']
+        self.symbols = opts['symbols']
+        self.dictionaryFile = opts['dictionaryFile']
+        self.numThreads = opts['numThreads']
+        self.length = opts['length']
+        self.command = opts['command']
+        self.verbose = opts['verbose']
+        self.statusCode = opts['statusCode']
+        self.marker = opts['marker']
+        self.charset = self.generate_charset()
+        self.permutationIterator = self.permutation_generator();
+        self.threads = []
 
-    perm_opts = {k: opts[k] for k in ('lowerAlphabet', 'upperAlphabet', 'numbers', 'symbols', 'dictionaryFile', 'length')}
-    thread_opts = {k: opts[k] for k in ('command', 'verbose', 'statusCode', 'marker')}
-    threads = []
-    threadID = 1
-
-    permutation_iterator = permutation_generator(perm_opts);
-
-    def signal_handler(signal, frame):
-        global exitFlag
-        if signal==2: # SIGINT / ctrl + c
-            print('Exiting...')
-            exitFlag = 1
+    def signal_handler(self, signal, frame):
+        print 'Last attempted password: ' + self.permutationIterator.last
+        print 'Attempt #: ' + str(self.get_attempt_by_password(self.permutationIterator.last))
+        if signal == 2: # SIGINT / ctrl + c
+            print 'Exiting...'
+            self.exitFlag = 1
             sys.exit(0)
-        elif signal==3: # SIGQUIT / ctrl + \
-            print('Last attempted password: ' + permutation_iterator.last)
 
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGQUIT, signal_handler)
+    def print_status(self):
+        print 'Lowercase alphabet: ', self.lowerAlphabet
+        print 'Uppercase alphabet: ', self.upperAlphabet
+        print 'Numbers: ', self.numbers
+        print 'Symbols: ', self.symbols
+        print 'Dictionary file: ', self.dictionaryFile
+        print 'Number of threads: ', self.numThreads
+        print 'Desired status code: ', self.statusCode
+        print 'Length: ', self.length
+        print 'Marker: ', self.marker
+        print 'Command to brute force: ', self.command
+        print '\n\n'
+        print 'Ctrl-C to quit'
+        print 'Ctrl-\\ to check status'
+        print '\n\n\n\n'
 
-    # Create new threads
-    for i in range(0, int(opts['numThreads'])):
-        thread = BruteForceThread(
-                threadID,
-                "thread-%s" % str(i),
-                thread_opts,
-                permutation_iterator,
-            )
-        thread.start()
-        threads.append(thread)
-        threadID += 1
+    def get_attempt_by_password(self, password):
+        pos = len(self.charset)
+        value = 0
+        try:
+            for i,c in enumerate(reversed(str(password))):
+                value += (pos**i) * self.charset.index(c)
+        except ValueError:
+            return "N/A"
+        return value
 
-    while not exitFlag:
-        pass
-    #signal.pause()
+    def generate_charset(self):
+        charset = []
+        if self.lowerAlphabet:
+            charset.extend(self.lowerAlphabetCharset)
+        if self.upperAlphabet:
+            charset.extend(self.upperAlphabetCharset)
+        if self.numbers:
+            charset.extend(self.numbersCharset)
+        if self.symbols:
+            charset.extend(self.symbolsCharset)
+        return charset
 
-    # Wait for all threads to complete
-    for t in threads:
-        t.join()
-    print "Exiting Main Thread"
-    return 0
+    @threadsafe
+    def permutation_generator(self):
+        if self.dictionaryFile is not None:
+            with open (self.dictionaryFile, "r") as dictFile:
+                data=dictFile.readlines()
+                words = [word.strip() for word in data]
+            for word in words:
+                yield word.lower()
+                yield word.upper()
+                yield word.title()
+
+        for i in range(1, int(self.length)+1):
+            for char in itertools.product(self.charset, repeat=i):
+                s = ''.join(char)
+                yield s
+
+    def process_attempt(self, name):
+        print "Starting " + name
+        while not self.exitFlag:
+            data = self.permutationIterator.next()
+            password_injected_command = [item.replace(self.marker, data) for item in self.command]
+            if self.verbose:
+                print "%s processing %s" % (self.name, data)
+                return_code = subprocess.call(password_injected_command)
+            else:
+                with open(os.devnull, 'w') as devnull:
+                    return_code = subprocess.call(password_injected_command, stdout=devnull, stderr=devnull)
+            if int(return_code) == int(self.statusCode):
+                self.exitFlag = 2
+                print "\n\n"
+                print "***** PASSWORD FOUND *****\n"
+                print "password: {}".format(data)
+                print "***** PASSWORD FOUND *****\n"
+                print "\n\n"
+                print "attempt #: " + str(self.get_attempt_by_password(data))
+        print "Exiting " + name
+
+    def run(self):
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGQUIT, self.signal_handler)
+
+        # Create new threads
+        for i in range(1, int(self.numThreads)+1):
+            threadName = "thread-%s" % str(i)
+            thread = threading.Thread(target=self.process_attempt, args=(threadName,))
+            thread.start()
+            self.threads.append(thread)
+
+        while not self.exitFlag:
+            pass
+
+        # Wait for all threads to complete
+        for thread in self.threads:
+            thread.join()
+        print "Exiting Main Thread"
+        return 0
+
 
 def main(argv):
     numThreads = 1
@@ -276,7 +266,7 @@ def main(argv):
         print errorText
         sys.exit(1)
 
-    return start_brute_force({
+    bf = BruteForcer({
         "numThreads"        : numThreads,
         "statusCode"        : statusCode,
         "lowerAlphabet"     : lowerAlphabet,
@@ -288,7 +278,9 @@ def main(argv):
         "length"            : length,
         "marker"            : marker,
         "command"           : args
-    })
+        })
+    bf.print_status()
+    return bf.run()
 
 
 if __name__ == "__main__":
