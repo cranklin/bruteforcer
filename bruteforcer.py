@@ -8,8 +8,8 @@ import getopt
 import itertools
 import subprocess
 
-exitFlag = 0
-version = "v0.01"
+exitFlag = 0  # 0: running 1: keyboard interrupt 2: password found
+version = "v0.03"
 errorText = '%s -h or %s --help for help' % (__file__, __file__)
 versionText = '''
 bruteforcer (cranklin.com) %s
@@ -102,13 +102,16 @@ class Threadsafe:
     def __init__(self, it):
         self.it = it
         self.lock = threading.Lock()
+        self.last = ""
 
     def __iter__(self):
         return self
 
     def next(self):
         with self.lock:
-            return self.it.next()
+            #return self.it.next()
+            self.last = self.it.next()
+            return self.last
 
 def threadsafe(f):
     """
@@ -119,7 +122,7 @@ def threadsafe(f):
     return g
 
 @threadsafe
-def get_permutation_generator(perm_opts):
+def permutation_generator(perm_opts):
     numeric_representation = []
     character_representation = []
     charset = [];
@@ -140,9 +143,10 @@ def get_permutation_generator(perm_opts):
             yield word.upper()
             yield word.title()
 
-    for char in itertools.product(charset, repeat=int(perm_opts['length'])):
-        s = ''.join(char)
-        yield s
+    for i in range(1, int(perm_opts['length'])+1):
+        for char in itertools.product(charset, repeat=i):
+            s = ''.join(char)
+            yield s
 
 def process_attempt(threadName, thread_opts, it):
     global exitFlag
@@ -165,12 +169,6 @@ def process_attempt(threadName, thread_opts, it):
     if exitFlag < 2:
         print "last password attempted by {} : {}".format(threadName, data)
 
-def signal_handler(signal, frame):
-    global exitFlag
-    print('Exiting...')
-    exitFlag = 1
-    sys.exit(0)
-
 def start_brute_force(opts):
     global exitFlag
     print 'Lowercase alphabet: ', opts['lowerAlphabet']
@@ -184,14 +182,28 @@ def start_brute_force(opts):
     print 'Marker: ', opts['marker']
     print 'Command to brute force: ', opts['command']
     print '\n\n'
+    print 'Ctrl-C to quit'
+    print 'Ctrl-\\ to check status'
+    print '\n\n\n\n'
 
     perm_opts = {k: opts[k] for k in ('lowerAlphabet', 'upperAlphabet', 'numbers', 'symbols', 'dictionaryFile', 'length')}
     thread_opts = {k: opts[k] for k in ('command', 'verbose', 'statusCode', 'marker')}
     threads = []
     threadID = 1
 
+    permutation_iterator = permutation_generator(perm_opts);
+
+    def signal_handler(signal, frame):
+        global exitFlag
+        if signal==2: # SIGINT / ctrl + c
+            print('Exiting...')
+            exitFlag = 1
+            sys.exit(0)
+        elif signal==3: # SIGQUIT / ctrl + \
+            print('Last attempted password: ' + permutation_iterator.last)
+
     signal.signal(signal.SIGINT, signal_handler)
-    generator = get_permutation_generator(perm_opts);
+    signal.signal(signal.SIGQUIT, signal_handler)
 
     # Create new threads
     for i in range(0, int(opts['numThreads'])):
@@ -199,7 +211,7 @@ def start_brute_force(opts):
                 threadID,
                 "thread-%s" % str(i),
                 thread_opts,
-                generator,
+                permutation_iterator,
             )
         thread.start()
         threads.append(thread)
