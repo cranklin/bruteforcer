@@ -76,37 +76,3 @@ void *printname(void *sharedQ)
     } while(name != NULL);
 }
 
-/*void main(void)
-{
-    size_t i;
-    int rc;
-    pthread_t threads[4];
-	char *names[] = {
-        "yasar",
-        "arabaci",
-        "osman",
-        "ahmet",
-        "mehmet",
-        "zeliha"
-    };
-
-    Queue* q = malloc(sizeof(Queue));
-    q->head = NULL;
-    q->tail = NULL;
-
-    size_t numelems = sizeof(names) / sizeof(char *);
-
-    for (size_t i = 0; i < numelems; i++)
-        push(q, names[i]);
-
-	for (size_t i = 0; i < 4; i++) {
-        rc = pthread_create(&threads[i], NULL, printname,
-                (void *)q);
-        if (rc) {
-            printf("Error, return code from pthread is %d\n", rc);
-            exit(-1);
-        }
-    }
-
-    pthread_exit(NULL);
-}*/
