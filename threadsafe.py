@@ -1,6 +1,6 @@
 import threading
 
-class Threadsafe:
+class Threadsafe(object):
     """
     Takes an iterator/generator and makes it thread-safe by
     serializing call to the `next` method of given iterator/generator.
